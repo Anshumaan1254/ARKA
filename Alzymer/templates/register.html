@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Register Face & Voice</h2>
+    <p style="text-align: center; color: var(--text-muted); margin-bottom: 2rem;">Add a new loved one to the database.
+    </p>
+
+    <form id="registerForm">
+        <div class="form-group">
+            <label for="name">Full Name</label>
+            <input type="text" id="name" name="name" placeholder="E.g., Grandma Sarah" required>
+        </div>
+
+        <div class="form-group">
+            <label for="file">Face Photo</label>
+            <input type="file" id="file" name="file" accept="image/*" required>
+        </div>
+
+        <div class="form-group">
+            <label for="voice">Voice Recording (Audio)</label>
+            <input type="file" id="voice" name="voice" accept="audio/*" required>
+        </div>
+
+        <button type="submit" class="btn" id="submitBtn">Register Member</button>
+    </form>
+
+    <div id="result-area" style="display: none;"></div>
+</div>
+
+<script>
+    const form = document.getElementById('registerForm');
+    const resultArea = document.getElementById('result-area');
+    const submitBtn = document.getElementById('submitBtn');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        submitBtn.disabled = true;
+        submitBtn.innerText = "Processing...";
+        resultArea.style.display = 'none';
+
+        const formData = new FormData(form);
+
+        try {
+            const response = await fetch('/register', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            resultArea.style.display = 'block';
+            if (response.ok) {
+                resultArea.className = 'success';
+                resultArea.innerText = result.message;
+                form.reset();
+            } else {
+                resultArea.className = 'error';
+                resultArea.innerText = result.message || "Registration failed.";
+            }
+        } catch (error) {
+            resultArea.style.display = 'block';
+            resultArea.className = 'error';
+            resultArea.innerText = "An error occurred during registration.";
+            console.error(error);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerText = "Register Member";
+        }
+    });
+</script>
+{% endblock %}

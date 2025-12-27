@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Who is this?</h2>
+
+    <div class="video-container">
+        <video id="video" autoplay muted playsinline></video>
+        <canvas id="canvas" style="display: none;"></canvas>
+    </div>
+
+    <button id="captureBtn" class="btn">Capture & Identify</button>
+
+    <!-- Fallback or Upload -->
+    <div style="margin-top: 1.5rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+        <label style="text-align: center;">Or upload an image</label>
+        <input type="file" id="uploadFile" accept="image/*">
+    </div>
+
+    <div id="result-area" style="display: none;">
+        <h3 id="result-name"></h3>
+        <p id="result-conf"></p>
+        <div id="status-animation"></div>
+    </div>
+</div>
+
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const captureBtn = document.getElementById('captureBtn');
+    const uploadInput = document.getElementById('uploadFile');
+    const resultArea = document.getElementById('result-area');
+    const resultName = document.getElementById('result-name');
+    const resultConf = document.getElementById('result-conf');
+
+    // Start Camera
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+        } catch (err) {
+            console.error("Camera error:", err);
+            alert("Camera access denied or unavailble. Please usage image upload.");
+        }
+    }
+    startCamera();
+
+    // Capture & Send
+    captureBtn.addEventListener('click', () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+
+        canvas.toBlob(blob => {
+            const file = new File([blob], "capture.jpg", { type: "image/jpeg" });
+            sendImage(file);
+        }, 'image/jpeg');
+    });
+
+    // Upload Change
+    uploadInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            sendImage(e.target.files[0]);
+        }
+    });
+
+    async function sendImage(file) {
+        resultArea.style.display = 'none';
+        captureBtn.disabled = true;
+        captureBtn.innerText = "Identifying...";
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch('/recognize', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+
+            resultArea.style.display = 'block';
+
+            if (data.status === 'success') {
+                resultArea.className = 'success';
+                resultName.innerText = `It's ${data.name}`;
+                resultConf.innerText = `Confidence: ${data.confidence}%`;
+
+                // Play Audio
+                const audio = new Audio(data.audio_url);
+                try {
+                    await audio.play();
+                } catch (e) {
+                    console.log("Audio play failed (maybe user gesture interaction policy):", e);
+                }
+
+            } else {
+                resultArea.className = 'error';
+                resultName.innerText = "Unknown Person";
+                resultConf.innerText = data.message;
+            }
+
+        } catch (err) {
+            console.error(err);
+            alert("Error connecting to server.");
+        } finally {
+            captureBtn.disabled = false;
+            captureBtn.innerText = "Capture & Identify";
+        }
+    }
+</script>
+{% endblock %}
