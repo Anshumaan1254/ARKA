@@ -1,113 +1,140 @@
-# Alzheimer Care App - Imagine Cup 2026
+# ARKA - Alzheimer's Recognition & Knowledge Assistant
 
-A comprehensive care application for Alzheimer's patients that helps them recognize people, manage medications, track items, and stay safe.
+A compassionate, production-grade web platform designed to help Alzheimer's patients recognize their loved ones and cherish precious memories.
 
-## Architecture
+## 🧠 Features
 
-```
-FLUTTER APP (mobile)  
-----------------------------------
-|  Voice Commands  | Camera Feed |
-|  GPS Location    | Reminders   |
-----------------------------------
-          |  REST API (HTTPS)
-          v
-EXPRESS JS BACKEND (Node.js)
---------------------------------
-| Auth (Azure AD B2C - JWKS)   |
-| Routes (people, memories)    |
-| Calls AI services            |
---------------------------------
-  /        |         |         \
-Face API  Vision API  Maps API  Blob Storage
- (Identify) (Detect)           (Media)
-           \         |                /
-            \        |               /
-              Azure Cosmos DB
-```
+### For Patients
+- **Face Recognition** - Point camera at someone to instantly identify them
+- **Voice Memories** - Hear personalized stories about recognized people
+- **SOS Emergency** - One-tap distress signal with live location sharing
+- **Simplified UI** - Large buttons, calm colors, distraction-free design
 
-## Project Structure
+### For Caretakers
+- **Secure Dashboard** - Manage patient data and monitor activity
+- **Add Known Faces** - Upload photos and record voice memories
+- **Recognition Logs** - Track who your patient has recognized
+- **SOS Alerts** - Receive instant notifications with patient location
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Frontend | React 18 + Vite |
+| Backend | Node.js + Express |
+| ML Service | Python FastAPI + DeepFace |
+| Database | Supabase (PostgreSQL) |
+| Auth | Supabase Auth (JWT) |
+| Storage | Supabase Storage |
+
+## 📁 Project Structure
 
 ```
 imaginecup/
-├── backend/                 # Express.js API Server
-│   ├── config/             # Azure service configs
-│   ├── routes/             # API endpoints
-│   ├── middleware/         # Auth middleware
-│   └── server.js           # Entry point
-├── ml-services/            # FastAPI ML Services
-│   ├── routes/             # ML endpoints
-│   └── main.py             # Entry point
-└── flutter_app/            # Flutter Mobile App
-    └── lib/
-        ├── config/         # API config
-        ├── models/         # Data models
-        ├── services/       # API, Auth, Location
-        └── screens/        # UI screens
+├── frontend/          # React + Vite app
+├── backend/           # Express API server
+├── ml-service/        # FastAPI face recognition
+└── supabase/          # SQL migrations
 ```
 
-## Setup
+## 🚀 Getting Started
 
-### 1. Backend Setup
+### Prerequisites
+- Node.js 18+
+- Python 3.9+
+- Supabase account (free tier works)
+
+### 1. Supabase Setup
+
+1. Create a new project at [supabase.com](https://supabase.com)
+2. Go to **SQL Editor** and run:
+   - `supabase/migrations/001_schema.sql`
+   - `supabase/migrations/002_storage_policies.sql`
+3. Go to **Database > Extensions** and enable `vector`
+4. Go to **Storage** and create buckets: `faces` and `voices`
+5. Copy your project URL and keys from **Settings > API**
+
+### 2. Backend Setup
 
 ```bash
 cd backend
 cp .env.example .env
-# Edit .env with your Azure credentials
+# Edit .env with your Supabase keys
 npm install
 npm run dev
 ```
 
-### 2. ML Services Setup
+### 3. ML Service Setup
 
 ```bash
-cd ml-services
+cd ml-service
 cp .env.example .env
+# Edit .env with your Supabase keys
 pip install -r requirements.txt
-python main.py
+python app/main.py
 ```
 
-### 3. Flutter App Setup
+### 4. Frontend Setup
 
 ```bash
-cd flutter_app
-flutter pub get
-flutter run
+cd frontend
+cp .env.example .env
+# Edit .env with your Supabase anon key
+npm install
+npm run dev
 ```
 
-## Required Azure Services
+### 5. Access the App
 
-1. **Azure Cosmos DB** - Database
-2. **Azure Blob Storage** - Media storage
-3. **Azure Face API** - Face recognition
-4. **Azure Computer Vision** - Object detection
-5. **Azure AD B2C** - Authentication (JWKS)
-6. **Google Maps API** - Location services
+Open http://localhost:5173
 
-## Features
+## 🔐 Security Features
 
-- **Face Recognition** - Identify known people
-- **Voice Commands** - "Recognize him", "Take me home"
-- **Medicine Reminders** - Scheduled notifications
-- **Memory Playback** - Audio/video memories
-- **SOS Alerts** - Emergency contacts
-- **Home Navigation** - One-tap directions
-- **Geofencing** - Safety alerts
-- **Item Tracking** - Find keys, remote, etc.
+- **JWT Authentication** via Supabase Auth
+- **Row Level Security (RLS)** on all tables
+- **Role-based access** (patient vs caretaker)
+- **Rate limiting** on API endpoints
+- **IP logging** for abuse protection
+- **Signed URLs** for secure file access
+- **Environment variables** for all secrets
 
-## API Endpoints
+## 📊 API Endpoints
 
-| Endpoint | Description |
-|----------|-------------|
-| `/api/auth/*` | Authentication |
-| `/api/persons/*` | Person management |
-| `/api/memories/*` | Memory CRUD |
-| `/api/reminders/*` | Medicine reminders |
-| `/api/sos/*` | SOS & geofencing |
-| `/api/items/*` | Item tracking |
-| `/api/frame/*` | Frame processing |
-| `/api/location/*` | Location tracking |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/signup` | Create account |
+| POST | `/api/auth/login` | Login |
+| GET | `/api/people` | List known people |
+| POST | `/api/people` | Add person |
+| POST | `/api/recognize` | Face recognition |
+| POST | `/api/sos` | Send SOS alert |
+| GET | `/api/sos` | List alerts |
 
-## License
+## 🎨 Design System
 
-MIT - Microsoft Imagine Cup 2026
+| Color | Hex | Usage |
+|-------|-----|-------|
+| Primary Teal | `#14B8A6` | Brand, buttons |
+| Secondary Green | `#22C55E` | Success, accents |
+| Background | `#F0FDFA` | Page backgrounds |
+| Text | `#134E4A` | Primary text |
+
+## 📱 Screenshots
+
+> Add screenshots of your app here
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Open a Pull Request
+
+## 📄 License
+
+MIT License - See [LICENSE](LICENSE) for details
+
+---
+
+Built with 💚 for the Microsoft Imagine Cup

@@ -1,0 +1,13 @@
+deepface>=0.0.79
+fastapi>=0.104.1
+uvicorn>=0.24.0
+python-multipart>=0.0.6
+numpy>=1.24.0
+scipy>=1.11.0
+supabase>=2.0.0
+python-dotenv>=1.0.0
+Pillow>=10.0.0
+aiofiles>=23.2.1
+httpx>=0.25.0
+mediapipe>=0.10.8
+ultralytics>=8.0.0
