@@ -14,6 +14,16 @@ function ObjectRecognize() {
     const canvasRef = useRef(null)
     const streamRef = useRef(null)
 
+    // Effect to connect video stream to video element after it renders
+    useEffect(() => {
+        if (cameraActive && videoRef.current && streamRef.current) {
+            videoRef.current.srcObject = streamRef.current
+            videoRef.current.play().catch(err => {
+                console.error('Video play error:', err)
+            })
+        }
+    }, [cameraActive])
+
     useEffect(() => {
         return () => {
             // Cleanup camera on unmount
@@ -25,20 +35,24 @@ function ObjectRecognize() {
 
     const startCamera = async () => {
         try {
+            setError('')
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: 'environment', width: 640, height: 480 }
             })
             streamRef.current = stream
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream
-            }
-            setCameraActive(true)
             setResults([])
             setCapturedImage(null)
-            setError('')
+            setCameraActive(true)
+            // The useEffect above will connect the stream to video element after render
         } catch (err) {
             console.error('Camera error:', err)
-            setError('Could not access camera. Please allow camera permissions.')
+            if (err.name === 'NotReadableError') {
+                setError('Camera is in use by another application. Please close other apps using the camera and try again.')
+            } else if (err.name === 'NotAllowedError') {
+                setError('Camera permission denied. Please allow camera access in your browser settings.')
+            } else {
+                setError('Could not access camera. Please check permissions and try again.')
+            }
         }
     }
 

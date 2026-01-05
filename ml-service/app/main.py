@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+os.environ["TF_USE_LEGACY_KERAS"] = "1"  # Use legacy Keras for DeepFace compatibility
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -38,10 +39,30 @@ except Exception as e:
     YOLO_MODEL = None
     YOLO_AVAILABLE = False
 
+# DeepFace for face recognition - handle Keras 3 compatibility
+DeepFace = None
 try:
     from deepface import DeepFace
-except ImportError:
-    print("WARNING: DeepFace not found. Install with: pip install deepface")
+    print("DeepFace loaded successfully")
+except ValueError as e:
+    if "keras 3" in str(e).lower() or "tf-keras" in str(e).lower():
+        print("WARNING: DeepFace requires legacy Keras. Trying workaround...")
+        try:
+            import tensorflow as tf
+            # Force TF to use legacy keras behavior
+            from deepface import DeepFace
+            print("DeepFace loaded with workaround")
+        except Exception as e2:
+            print(f"WARNING: DeepFace not available due to Keras 3 incompatibility: {e2}")
+            DeepFace = None
+    else:
+        print(f"WARNING: DeepFace import error: {e}")
+        DeepFace = None
+except ImportError as e:
+    print(f"WARNING: DeepFace not found. Install with: pip install deepface: {e}")
+    DeepFace = None
+except Exception as e:
+    print(f"WARNING: DeepFace could not be loaded: {e}")
     DeepFace = None
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")

@@ -15,31 +15,55 @@ export function AuthProvider({ children }) {
     const [token, setToken] = useState(null)
 
     useEffect(() => {
+        let isMounted = true
+        
         supabase.auth.getSession().then(({ data: { session } }) => {
+            if (!isMounted) return
+            
             if (session) {
                 setUser(session.user)
                 setToken(session.access_token)
-                fetchProfile(session.user.id)
+                localStorage.setItem('token', session.access_token)
+                
+                // Fetch profile with timeout - don't block loading state
+                const profilePromise = fetchProfile(session.user.id)
+                const timeoutPromise = new Promise(resolve => setTimeout(resolve, 3000))
+                
+                Promise.race([profilePromise, timeoutPromise]).then(() => {
+                    if (isMounted) setLoading(false)
+                })
+            } else {
+                setLoading(false)
             }
-            setLoading(false)
+        }).catch(err => {
+            console.error('Session error:', err)
+            if (isMounted) setLoading(false)
         })
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
+                if (!isMounted) return
+                
                 if (session) {
                     setUser(session.user)
                     setToken(session.access_token)
-                    await fetchProfile(session.user.id)
+                    localStorage.setItem('token', session.access_token)
+                    // Don't await - fetch in background
+                    fetchProfile(session.user.id)
                 } else {
                     setUser(null)
                     setProfile(null)
                     setToken(null)
+                    localStorage.removeItem('token')
                 }
                 setLoading(false)
             }
         )
 
-        return () => subscription.unsubscribe()
+        return () => {
+            isMounted = false
+            subscription.unsubscribe()
+        }
     }, [])
 
     async function fetchProfile(userId) {
