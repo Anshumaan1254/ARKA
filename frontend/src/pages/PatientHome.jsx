@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { api } from '../services/api'
-import { Camera, Scan, AlertTriangle, MapPin } from 'lucide-react'
+import { Camera, Scan, AlertTriangle, MapPin, Heart, Bell } from 'lucide-react'
 
 function PatientHome() {
     const { profile } = useAuth()
@@ -123,6 +123,66 @@ function PatientHome() {
                         </h2>
                         <p style={{ color: 'var(--text-secondary)' }}>
                             Identify objects around you
+                        </p>
+                    </Link>
+
+                    <Link
+                        to="/patient/memories"
+                        className="card"
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            textAlign: 'center',
+                            padding: 'var(--space-8)',
+                            textDecoration: 'none',
+                            color: 'inherit'
+                        }}
+                    >
+                        <div style={{
+                            padding: 'var(--space-5)',
+                            background: 'rgba(168, 85, 247, 0.1)',
+                            borderRadius: 'var(--radius-full)',
+                            marginBottom: 'var(--space-4)',
+                            color: '#a855f7'
+                        }}>
+                            <Heart size={48} />
+                        </div>
+                        <h2 style={{ fontSize: 'var(--font-size-xl)', marginBottom: 'var(--space-2)' }}>
+                            My Memories
+                        </h2>
+                        <p style={{ color: 'var(--text-secondary)' }}>
+                            Capture beautiful moments
+                        </p>
+                    </Link>
+
+                    <Link
+                        to="/patient/reminders"
+                        className="card"
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            textAlign: 'center',
+                            padding: 'var(--space-8)',
+                            textDecoration: 'none',
+                            color: 'inherit'
+                        }}
+                    >
+                        <div style={{
+                            padding: 'var(--space-5)',
+                            background: 'rgba(245, 158, 11, 0.1)',
+                            borderRadius: 'var(--radius-full)',
+                            marginBottom: 'var(--space-4)',
+                            color: '#f59e0b'
+                        }}>
+                            <Bell size={48} />
+                        </div>
+                        <h2 style={{ fontSize: 'var(--font-size-xl)', marginBottom: 'var(--space-2)' }}>
+                            My Reminders
+                        </h2>
+                        <p style={{ color: 'var(--text-secondary)' }}>
+                            Set helpful reminders
                         </p>
                     </Link>
                 </div>

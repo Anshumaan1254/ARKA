@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { Home, User, Users, LogOut, Scan } from 'lucide-react'
+import { Home, User, Users, LogOut, Scan, Heart, Shield, Volume2, Bell } from 'lucide-react'
 
 function Navbar() {
     const { user, profile, signOut } = useAuth()
@@ -60,6 +60,18 @@ function Navbar() {
                                 </Link>
                             </li>
                             <li>
+                                <Link to="/patient/memories" className="nav-link flex items-center gap-2">
+                                    <Heart size={18} />
+                                    Memories
+                                </Link>
+                            </li>
+                            <li>
+                                <Link to="/patient/reminders" className="nav-link flex items-center gap-2">
+                                    <Bell size={18} />
+                                    Reminders
+                                </Link>
+                            </li>
+                            <li>
                                 <button onClick={handleLogout} className="nav-link flex items-center gap-2">
                                     <LogOut size={18} />
                                     Logout
@@ -78,6 +90,24 @@ function Navbar() {
                                 <Link to="/dashboard/people" className="nav-link flex items-center gap-2">
                                     <Users size={18} />
                                     People
+                                </Link>
+                            </li>
+                            <li>
+                                <Link to="/dashboard/memories" className="nav-link flex items-center gap-2">
+                                    <Heart size={18} />
+                                    Memories
+                                </Link>
+                            </li>
+                            <li>
+                                <Link to="/dashboard/health" className="nav-link flex items-center gap-2">
+                                    <Shield size={18} />
+                                    Health
+                                </Link>
+                            </li>
+                            <li>
+                                <Link to="/dashboard/voice" className="nav-link flex items-center gap-2">
+                                    <Volume2 size={18} />
+                                    Voice
                                 </Link>
                             </li>
                             <li>

@@ -603,6 +603,699 @@ async def list_object_descriptions(patient_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============================================
+# ADVANCED AI FEATURES
+# ============================================
+
+# Import advanced modules
+try:
+    from app.gemini_service import (
+        generate_memory_context,
+        generate_object_context,
+        generate_soothing_message,
+        GEMINI_AVAILABLE
+    )
+except ImportError:
+    GEMINI_AVAILABLE = False
+    print("WARNING: Gemini service not available")
+
+try:
+    from app.voice_cloning import (
+        clone_voice_speak,
+        save_voice_sample,
+        get_voice_sample_path,
+        validate_voice_sample,
+        is_available as voice_available
+    )
+    VOICE_CLONING_AVAILABLE = voice_available()
+except ImportError:
+    VOICE_CLONING_AVAILABLE = False
+    print("WARNING: Voice cloning not available")
+
+try:
+    from app.anomaly_detector import (
+        check_anomaly,
+        train_detector,
+        is_available as anomaly_available
+    )
+    ANOMALY_DETECTION_AVAILABLE = anomaly_available()
+except ImportError:
+    ANOMALY_DETECTION_AVAILABLE = False
+    print("WARNING: Anomaly detection not available")
+
+
+@app.get("/features")
+async def get_features():
+    """Return available advanced features"""
+    return {
+        "gemini_context": GEMINI_AVAILABLE,
+        "voice_cloning": VOICE_CLONING_AVAILABLE,
+        "anomaly_detection": ANOMALY_DETECTION_AVAILABLE,
+        "face_recognition": DeepFace is not None,
+        "object_detection": YOLO_AVAILABLE
+    }
+
+
+# ============================================
+# LIVING MEMORY GRAPH (Gemini)
+# ============================================
+
+@app.post("/generate-context")
+async def generate_context(
+    patient_id: str = Form(...),
+    person_id: str = Form(...),
+    person_name: str = Form(...),
+    relationship: str = Form(...)
+):
+    """
+    Generate context-aware greeting using Gemini and recent memories.
+    """
+    try:
+        # Fetch recent memory events from database
+        response = supabase.rpc(
+            "get_recent_memories",
+            {"p_patient_id": patient_id, "p_person_id": person_id, "p_limit": 5}
+        ).execute()
+        
+        recent_events = response.data if response.data else []
+        
+        # Generate context with Gemini
+        if GEMINI_AVAILABLE:
+            context = generate_memory_context(
+                person_name=person_name,
+                relationship=relationship,
+                recent_events=recent_events
+            )
+        else:
+            # Fallback
+            if recent_events:
+                event = recent_events[0]
+                context = f"This is {person_name}, your {relationship}. You recently {event.get('title', 'spent time together').lower()}."
+            else:
+                context = f"This is {person_name}, your {relationship}. They love you very much."
+        
+        return JSONResponse(content={
+            "success": True,
+            "context": context,
+            "events_used": len(recent_events),
+            "gemini_used": GEMINI_AVAILABLE
+        })
+        
+    except Exception as e:
+        print(f"Context generation error: {e}")
+        return JSONResponse(content={
+            "success": True,
+            "context": f"This is {person_name}, your {relationship}.",
+            "error": str(e)
+        })
+
+
+@app.post("/add-memory-event")
+async def add_memory_event(
+    patient_id: str = Form(...),
+    person_id: str = Form(None),
+    event_type: str = Form(...),
+    event_date: str = Form(...),
+    title: str = Form(...),
+    description: str = Form(None),
+    emotional_tone: str = Form("happy"),
+    created_by: str = Form(None)
+):
+    """
+    Add a memory event for the Living Memory Graph.
+    """
+    try:
+        data = {
+            "patient_id": patient_id,
+            "event_type": event_type,
+            "event_date": event_date,
+            "title": title,
+            "description": description,
+            "emotional_tone": emotional_tone
+        }
+        if person_id:
+            data["person_id"] = person_id
+        if created_by:
+            data["created_by"] = created_by
+        
+        response = supabase.table("memory_events").insert(data).execute()
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": "Memory event added",
+            "event_id": response.data[0]["id"] if response.data else None
+        })
+        
+    except Exception as e:
+        print(f"Add memory event error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/memory-events/{patient_id}")
+async def list_memory_events(patient_id: str, person_id: str = None, limit: int = 20):
+    """List memory events for a patient"""
+    try:
+        query = supabase.table("memory_events").select("*").eq(
+            "patient_id", patient_id
+        ).order("event_date", desc=True).limit(limit)
+        
+        if person_id:
+            query = query.eq("person_id", person_id)
+        
+        response = query.execute()
+        
+        return JSONResponse(content={
+            "success": True,
+            "events": response.data or [],
+            "count": len(response.data) if response.data else 0
+        })
+        
+    except Exception as e:
+        print(f"List memory events error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================
+# FAMILY VOICE CLONING (Coqui XTTS)
+# ============================================
+
+@app.post("/upload-voice-sample")
+async def upload_voice_sample(
+    person_id: str = Form(...),
+    patient_id: str = Form(...),
+    created_by: str = Form(None),
+    file: UploadFile = File(...)
+):
+    """
+    Upload a voice sample for cloning.
+    Requires 6-60 seconds of clear speech.
+    """
+    temp_path = None
+    try:
+        # Save temp file
+        temp_path = await save_temp_file(file)
+        
+        # Validate the sample
+        if VOICE_CLONING_AVAILABLE:
+            validation = validate_voice_sample(temp_path)
+            if not validation["valid"]:
+                return JSONResponse(
+                    status_code=400,
+                    content={"success": False, "error": validation["message"]}
+                )
+            quality_score = validation["quality_score"]
+            duration = validation["duration_seconds"]
+        else:
+            quality_score = 0.5
+            duration = 10
+        
+        # Upload to Supabase storage
+        storage_path = f"{patient_id}/voices/{person_id}_{uuid.uuid4()}.wav"
+        
+        with open(temp_path, "rb") as f:
+            content = f.read()
+        
+        supabase.storage.from_("voices").upload(
+            storage_path, content, {"content-type": "audio/wav"}
+        )
+        
+        # Save to database
+        supabase.table("voice_samples").insert({
+            "person_id": person_id,
+            "patient_id": patient_id,
+            "audio_path": storage_path,
+            "duration_seconds": duration,
+            "quality_score": quality_score,
+            "is_active": True,
+            "created_by": created_by
+        }).execute()
+        
+        # Also save locally for TTS model
+        if VOICE_CLONING_AVAILABLE:
+            save_voice_sample(content, person_id)
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": "Voice sample uploaded successfully",
+            "duration": duration,
+            "quality_score": quality_score
+        })
+        
+    except Exception as e:
+        print(f"Voice sample upload error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if temp_path:
+            cleanup_temp_file(temp_path)
+
+
+@app.post("/speak")
+async def speak_text(
+    text: str = Form(...),
+    person_id: str = Form(None),
+    use_cloned_voice: bool = Form(True)
+):
+    """
+    Generate speech, optionally using a cloned voice.
+    Returns WAV audio bytes.
+    """
+    try:
+        audio_bytes = None
+        voice_used = "default"
+        
+        if use_cloned_voice and person_id and VOICE_CLONING_AVAILABLE:
+            voice_path = get_voice_sample_path(person_id)
+            if voice_path:
+                try:
+                    audio_bytes = clone_voice_speak(text, voice_path)
+                    voice_used = "cloned"
+                except Exception as e:
+                    print(f"Voice cloning error: {e}")
+        
+        if audio_bytes is None and VOICE_CLONING_AVAILABLE:
+            from app.voice_cloning import speak_with_default_voice
+            audio_bytes = speak_with_default_voice(text)
+            voice_used = "default"
+        
+        if audio_bytes:
+            # Return as base64 for easy frontend handling
+            import base64
+            audio_b64 = base64.b64encode(audio_bytes).decode()
+            
+            return JSONResponse(content={
+                "success": True,
+                "audio_base64": audio_b64,
+                "voice_used": voice_used,
+                "format": "wav"
+            })
+        else:
+            # Return text for browser TTS fallback
+            return JSONResponse(content={
+                "success": True,
+                "text": text,
+                "voice_used": "browser_tts",
+                "format": "text"
+            })
+        
+    except Exception as e:
+        print(f"Speak error: {e}")
+        return JSONResponse(content={
+            "success": True,
+            "text": text,
+            "voice_used": "browser_tts",
+            "error": str(e)
+        })
+
+
+# ============================================
+# PREDICTIVE SENTINEL (Anomaly Detection)
+# ============================================
+
+@app.post("/ingest-telemetry")
+async def ingest_telemetry(
+    patient_id: str = Form(...),
+    heart_rate: int = Form(None),
+    walking_speed: float = Form(None),
+    location_lat: float = Form(None),
+    location_lng: float = Form(None),
+    location_diff: float = Form(None),
+    is_inside_safe_zone: bool = Form(True),
+    device_id: str = Form(None)
+):
+    """
+    Ingest real-time health telemetry and check for anomalies.
+    """
+    try:
+        from datetime import datetime
+        
+        now = datetime.now()
+        hour = now.hour
+        
+        # Determine time of day
+        if 5 <= hour < 12:
+            time_of_day = "morning"
+        elif 12 <= hour < 17:
+            time_of_day = "afternoon"
+        elif 17 <= hour < 21:
+            time_of_day = "evening"
+        else:
+            time_of_day = "night"
+        
+        # Build location JSON
+        location = None
+        if location_lat and location_lng:
+            location = {"lat": location_lat, "lng": location_lng}
+        
+        # Insert telemetry
+        telemetry_data = {
+            "patient_id": patient_id,
+            "heart_rate": heart_rate,
+            "walking_speed": walking_speed,
+            "location": location,
+            "location_diff": location_diff,
+            "is_inside_safe_zone": is_inside_safe_zone,
+            "time_of_day": time_of_day,
+            "device_id": device_id
+        }
+        
+        supabase.table("health_telemetry").insert(telemetry_data).execute()
+        
+        # Check for anomalies
+        anomaly_result = None
+        if ANOMALY_DETECTION_AVAILABLE:
+            anomaly_result = check_anomaly(patient_id, telemetry_data)
+            
+            # If anomaly detected, create alert
+            if anomaly_result["is_anomaly"]:
+                alert_data = {
+                    "patient_id": patient_id,
+                    "alert_type": anomaly_result["alert_type"],
+                    "severity": anomaly_result["severity"],
+                    "confidence": anomaly_result["confidence"],
+                    "prediction_reason": anomaly_result["reason"],
+                    "telemetry_snapshot": telemetry_data
+                }
+                supabase.table("anomaly_alerts").insert(alert_data).execute()
+        
+        return JSONResponse(content={
+            "success": True,
+            "anomaly": anomaly_result,
+            "message": "Telemetry recorded"
+        })
+        
+    except Exception as e:
+        print(f"Telemetry ingestion error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/check-anomaly")
+async def check_anomaly_endpoint(
+    patient_id: str = Form(...),
+    heart_rate: int = Form(70),
+    walking_speed: float = Form(0),
+    location_diff: float = Form(0),
+    is_inside_safe_zone: bool = Form(True)
+):
+    """
+    Manually check if given telemetry is anomalous.
+    """
+    try:
+        from datetime import datetime
+        
+        telemetry = {
+            "heart_rate": heart_rate,
+            "walking_speed": walking_speed,
+            "location_diff": location_diff,
+            "is_inside_safe_zone": is_inside_safe_zone,
+            "timestamp": datetime.now()
+        }
+        
+        if ANOMALY_DETECTION_AVAILABLE:
+            result = check_anomaly(patient_id, telemetry)
+        else:
+            result = {
+                "is_anomaly": False,
+                "confidence": 0,
+                "message": "Anomaly detection not available"
+            }
+        
+        return JSONResponse(content={
+            "success": True,
+            **result
+        })
+        
+    except Exception as e:
+        print(f"Anomaly check error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/train-anomaly-model")
+async def train_anomaly_model_endpoint(patient_id: str = Form(...)):
+    """
+    Train/retrain the anomaly detection model for a patient.
+    Uses synthetic data for initial training.
+    """
+    try:
+        if not ANOMALY_DETECTION_AVAILABLE:
+            return JSONResponse(content={
+                "success": False,
+                "error": "Anomaly detection not available"
+            })
+        
+        train_detector(patient_id)
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": f"Anomaly model trained for patient {patient_id}"
+        })
+        
+    except Exception as e:
+        print(f"Model training error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/anomaly-alerts/{patient_id}")
+async def list_anomaly_alerts(
+    patient_id: str,
+    unacknowledged_only: bool = False,
+    limit: int = 50
+):
+    """List anomaly alerts for a patient"""
+    try:
+        query = supabase.table("anomaly_alerts").select("*").eq(
+            "patient_id", patient_id
+        ).order("triggered_at", desc=True).limit(limit)
+        
+        if unacknowledged_only:
+            query = query.eq("acknowledged", False)
+        
+        response = query.execute()
+        
+        return JSONResponse(content={
+            "success": True,
+            "alerts": response.data or [],
+            "count": len(response.data) if response.data else 0
+        })
+        
+    except Exception as e:
+        print(f"List alerts error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/acknowledge-alert")
+async def acknowledge_alert(
+    alert_id: str = Form(...),
+    acknowledged_by: str = Form(None),
+    action_taken: str = Form(None),
+    false_positive: bool = Form(False)
+):
+    """Acknowledge an anomaly alert"""
+    try:
+        from datetime import datetime
+        
+        supabase.table("anomaly_alerts").update({
+            "acknowledged": True,
+            "acknowledged_by": acknowledged_by,
+            "acknowledged_at": datetime.now().isoformat(),
+            "action_taken": action_taken,
+            "false_positive": false_positive
+        }).eq("id", alert_id).execute()
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": "Alert acknowledged"
+        })
+        
+    except Exception as e:
+        print(f"Acknowledge alert error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/generate-soothing-message")
+async def generate_soothing(
+    patient_id: str = Form(None),
+    alert_type: str = Form("general"),
+    patient_name: str = Form(None),
+    caretaker_name: str = Form(None)
+):
+    """
+    Generate a calming message for the patient during an anomaly event.
+    """
+    try:
+        if GEMINI_AVAILABLE:
+            message = generate_soothing_message(
+                patient_name=patient_name,
+                alert_type=alert_type,
+                caretaker_name=caretaker_name
+            )
+        else:
+            message = "Everything is okay. You are safe. Someone who loves you is coming to help."
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": message
+        })
+        
+    except Exception as e:
+        print(f"Soothing message error: {e}")
+        return JSONResponse(content={
+            "success": True,
+            "message": "Everything is okay. You are safe. Help is on the way."
+        })
+
+
+# ============================================
+# VOICE CLONING (Bark TTS)
+# ============================================
+
+@app.post("/speak")
+async def speak_text(
+    text: str = Form(...),
+    person_id: str = Form(None),
+    patient_id: str = Form(None),
+    voice_preset: str = Form("warm_female")
+):
+    """
+    Generate speech from text using Bark TTS.
+    Returns base64-encoded WAV audio.
+    """
+    try:
+        if not VOICE_CLONING_AVAILABLE:
+            return JSONResponse(content={
+                "success": False,
+                "error": "Voice synthesis not available",
+                "fallback": True
+            })
+        
+        from app.voice_cloning import generate_speech, audio_to_base64
+        
+        # Generate speech
+        audio_bytes = generate_speech(
+            text=text,
+            voice_preset=voice_preset,
+            person_id=person_id
+        )
+        
+        # Convert to base64 for API response
+        audio_base64 = audio_to_base64(audio_bytes)
+        
+        return JSONResponse(content={
+            "success": True,
+            "audio_base64": audio_base64,
+            "format": "wav"
+        })
+        
+    except Exception as e:
+        print(f"Speak error: {e}")
+        return JSONResponse(content={
+            "success": False,
+            "error": str(e),
+            "fallback": True
+        })
+
+
+@app.post("/upload-voice-sample")
+async def upload_voice_sample(
+    file: UploadFile = File(...),
+    person_id: str = Form(...),
+    patient_id: str = Form(...),
+    created_by: str = Form(None)
+):
+    """
+    Upload a voice sample for a person for future voice cloning.
+    """
+    try:
+        if not VOICE_CLONING_AVAILABLE:
+            return JSONResponse(content={
+                "success": False,
+                "error": "Voice synthesis not available"
+            })
+        
+        from app.voice_cloning import save_voice_sample, validate_voice_sample
+        
+        # Read the uploaded file
+        audio_bytes = await file.read()
+        
+        # Save the voice sample
+        sample_path = save_voice_sample(audio_bytes, person_id)
+        
+        # Validate the sample
+        validation = validate_voice_sample(sample_path)
+        
+        # Save reference to database
+        try:
+            supabase.table("voice_samples").insert({
+                "person_id": person_id,
+                "patient_id": patient_id,
+                "sample_path": sample_path,
+                "duration_seconds": validation.get("duration_seconds", 0),
+                "quality_score": validation.get("quality_score", 0),
+                "created_by": created_by or patient_id
+            }).execute()
+        except Exception as db_err:
+            print(f"DB save warning: {db_err}")
+        
+        return JSONResponse(content={
+            "success": True,
+            "sample_path": sample_path,
+            "validation": validation
+        })
+        
+    except Exception as e:
+        print(f"Upload voice sample error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/voice-samples/{person_id}")
+async def get_voice_samples(person_id: str):
+    """
+    Get available voice samples for a person.
+    """
+    try:
+        from app.voice_cloning import get_voice_sample_path
+        
+        sample_path = get_voice_sample_path(person_id)
+        
+        return JSONResponse(content={
+            "success": True,
+            "has_sample": sample_path is not None,
+            "sample_path": sample_path
+        })
+        
+    except Exception as e:
+        print(f"Get voice samples error: {e}")
+        return JSONResponse(content={
+            "success": False,
+            "has_sample": False,
+            "error": str(e)
+        })
+
+
+@app.get("/available-voices")
+async def get_available_voices():
+    """
+    Get list of available voice presets.
+    """
+    try:
+        if VOICE_CLONING_AVAILABLE:
+            from app.voice_cloning import get_available_voices
+            voices = get_available_voices()
+        else:
+            voices = []
+        
+        return JSONResponse(content={
+            "success": True,
+            "available": VOICE_CLONING_AVAILABLE,
+            "voices": voices
+        })
+        
+    except Exception as e:
+        return JSONResponse(content={
+            "success": False,
+            "voices": []
+        })
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
@@ -611,3 +1304,4 @@ if __name__ == "__main__":
         port=int(os.getenv("PORT", 8000)),
         reload=True
     )
+
