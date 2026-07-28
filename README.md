@@ -27,7 +27,7 @@ A compassionate, production-grade web platform designed to help Alzheimer's pati
 | Auth | Supabase Auth (JWT) |
 | Storage | Supabase Storage |
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 imaginecup/
@@ -37,7 +37,7 @@ imaginecup/
 └── supabase/          # SQL migrations
 ```
 
-## 🚀 Getting Started
+##  Getting Started
 
 ### Prerequisites
 - Node.js 18+
@@ -88,7 +88,7 @@ npm run dev
 
 Open http://localhost:5173
 
-## 🔐 Security Features
+##  Security Features
 
 - **JWT Authentication** via Supabase Auth
 - **Row Level Security (RLS)** on all tables
@@ -98,7 +98,7 @@ Open http://localhost:5173
 - **Signed URLs** for secure file access
 - **Environment variables** for all secrets
 
-## 📊 API Endpoints
+##  API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -110,7 +110,7 @@ Open http://localhost:5173
 | POST | `/api/sos` | Send SOS alert |
 | GET | `/api/sos` | List alerts |
 
-## 🎨 Design System
+##  Design System
 
 | Color | Hex | Usage |
 |-------|-----|-------|
@@ -119,11 +119,9 @@ Open http://localhost:5173
 | Background | `#F0FDFA` | Page backgrounds |
 | Text | `#134E4A` | Primary text |
 
-## 📱 Screenshots
 
-> Add screenshots of your app here
 
-## 🤝 Contributing
+##  Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -136,5 +134,3 @@ Open http://localhost:5173
 MIT License - See [LICENSE](LICENSE) for details
 
 ---
-
-Built with 💚 for the Microsoft Imagine Cup
